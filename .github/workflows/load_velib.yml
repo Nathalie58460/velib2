@@ -26,8 +26,8 @@ jobs:
           SNOWSQL_USER: ${{ secrets.SNOWSQL_USER }}
           SNOWSQL_PWD: ${{ secrets.SNOWSQL_PWD }}
         run: |
-          snowsql -q "PUT file://station_information.json @VELIB_STAGE auto_compress=false"
-
+          snowsql -a $SNOWSQL_ACCOUNT -u $SNOWSQL_USER -p $SNOWSQL_PWD \
+            -q "PUT file://station_information.json @VELIB_STAGE auto_compress=false overwrite=true"
       - name: Trigger dbt Cloud Job
         env:
           DBT_API_KEY: ${{ secrets.DBT_API_KEY }}
