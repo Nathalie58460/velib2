@@ -1,0 +1,37 @@
+name: Load Velib JSON into Snowflake
+
+on:
+  schedule:
+    - cron: "0 * * * *"   # toutes les heures
+  workflow_dispatch:       # déclenchement manuel
+
+jobs:
+  load-json:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install SnowSQL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y snowflake-snowsql
+
+      - name: Download Velib JSON
+        run: |
+          curl -o station_information.json \
+            https://velib-metropole-opendata.smovengo.cloud/opendata/Velib_Metropole/station_information.json
+
+      - name: Upload to Snowflake Stage
+        env:
+          SNOWSQL_ACCOUNT: ${{ secrets.SNOWSQL_ACCOUNT }}
+          SNOWSQL_USER: ${{ secrets.SNOWSQL_USER }}
+          SNOWSQL_PWD: ${{ secrets.SNOWSQL_PWD }}
+        run: |
+          snowsql -q "PUT file://station_information.json @VELIB_STAGE auto_compress=false"
+
+      - name: Trigger dbt Cloud Job
+        env:
+          DBT_API_KEY: ${{ secrets.DBT_API_KEY }}
+        run: |
+          curl -X POST \
+            -H "Authorization: Token $DBT_API_KEY" \
+            https://cloud.getdbt.com/api/v2/accounts/<ACCOUNT_ID>/jobs/<JOB_ID>/run/
