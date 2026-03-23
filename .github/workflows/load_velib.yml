@@ -11,10 +11,8 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      # URL Vélib
       VELIB_URL: "https://velib-metropole-opendata.smovengo.cloud/opendata/Velib_Metropole/station_information.json"
 
-      # Snowflake credentials (utilisés automatiquement par le CLI 'snow')
       SNOWFLAKE_ACCOUNT:   ${{ secrets.SNOWSQL_ACCOUNT }}
       SNOWFLAKE_USER:      ${{ secrets.SNOWSQL_USER }}
       SNOWFLAKE_PASSWORD:  ${{ secrets.SNOWSQL_PWD }}
@@ -23,7 +21,6 @@ jobs:
       SNOWFLAKE_DATABASE:  ${{ secrets.SNOWSQL_DB }}
       SNOWFLAKE_SCHEMA:    ${{ secrets.SNOWSQL_SCHEMA }}
 
-      # dbt Cloud
       DBT_API_KEY:     ${{ secrets.DBT_API_KEY }}
       DBT_ACCOUNT_ID:  ${{ secrets.DBT_ACCOUNT_ID }}
       DBT_JOB_ID:      ${{ secrets.DBT_JOB_ID }}
@@ -32,25 +29,53 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 1. Installer Snowflake CLI
+      ###############################################################
+      # 1. Install Snowflake CLI
+      ###############################################################
       - name: Install Snowflake CLI
         run: |
           pip install --upgrade pip
           pip install snowflake-cli-labs
           snow --version
 
-      # 2. Télécharger JSON Vélib
+      ###############################################################
+      # 2. Download JSON
+      ###############################################################
       - name: Download Velib JSON
         run: |
           curl -fSL -o station_information.json "$VELIB_URL"
           wc -c station_information.json
 
-      # 3. PUT dans Snowflake via Snowflake CLI
+      ###############################################################
+      # 3. Create Snowflake connection (REQUIRED)
+      ###############################################################
+      - name: Create Snowflake connection
+        run: |
+          snow connection add gha \
+            --account "$SNOWFLAKE_ACCOUNT" \
+            --username "$SNOWFLAKE_USER" \
+            --password "$SNOWFLAKE_PASSWORD" \
+            --role "$SNOWFLAKE_ROLE" \
+            --warehouse "$SNOWFLAKE_WAREHOUSE" \
+            --database "$SNOWFLAKE_DATABASE" \
+            --schema "$SNOWFLAKE_SCHEMA" \
+            --authenticator plain
+
+      ###############################################################
+      # 4. Execute PUT using connection "gha"
+      ###############################################################
       - name: Upload JSON to Snowflake Stage
         run: |
-          snow sql -q "PUT file://$(pwd)/station_information.json @VELIB_STAGE AUTO_COMPRESS = FALSE OVERWRITE = TRUE;" --connection env          
-          
-      # 4. Déclencher dbt Cloud
+          snow sql --connection gha -q "
+            PUT file://$(pwd)/station_information.json
+            @VELIB_STAGE
+            AUTO_COMPRESS = FALSE
+            OVERWRITE = TRUE;
+          "
+
+      ###############################################################
+      # 5. Trigger dbt Cloud
+      ###############################################################
       - name: Trigger dbt Cloud Job
         if: ${{ env.DBT_ACCOUNT_ID != '' && env.DBT_JOB_ID != '' }}
         run: |
