@@ -6,43 +6,43 @@ on:
 jobs:
   load-json:
     runs-on: ubuntu-latest
+
     env:
       VELIB_URL: "https://velib-metropole-opendata.smovengo.cloud/opendata/Velib_Metropole/station_information.json"
-      # Connexion Snowflake
-      SNOW_ACCOUNT:    ${{ secrets.SNOWSQL_ACCOUNT }}     # ex: xy12345.eu-west-1
-      SNOW_USER:       ${{ secrets.SNOWSQL_USER }}
-      SNOW_PASSWORD:   ${{ secrets.SNOWSQL_PWD }}
-      SNOW_ROLE:       ${{ secrets.SNOWSQL_ROLE }}
-      SNOW_WAREHOUSE:  ${{ secrets.SNOWSQL_WAREHOUSE }}
-      SNOW_DATABASE:   ${{ secrets.SNOWSQL_DB }}
-      SNOW_SCHEMA:     ${{ secrets.SNOWSQL_SCHEMA }}
-      # dbt Cloud
-      DBT_API_KEY:     ${{ secrets.DBT_API_KEY }}
-      DBT_ACCOUNT_ID:  ${{ secrets.DBT_ACCOUNT_ID }}
-      DBT_JOB_ID:      ${{ secrets.DBT_JOB_ID }}
+
+      SNOWSQL_ACCOUNT: ${{ secrets.SNOWSQL_ACCOUNT }}
+      SNOWSQL_USER: ${{ secrets.SNOWSQL_USER }}
+      SNOWSQL_PWD: ${{ secrets.SNOWSQL_PWD }}
+      SNOWSQL_ROLE: ${{ secrets.SNOWSQL_ROLE }}
+      SNOWSQL_WAREHOUSE: ${{ secrets.SNOWSQL_WAREHOUSE }}
+      SNOWSQL_DB: ${{ secrets.SNOWSQL_DB }}
+      SNOWSQL_SCHEMA: ${{ secrets.SNOWSQL_SCHEMA }}
+
+      DBT_API_KEY: ${{ secrets.DBT_API_KEY }}
+      DBT_ACCOUNT_ID: ${{ secrets.DBT_ACCOUNT_ID }}
+      DBT_JOB_ID: ${{ secrets.DBT_JOB_ID }}
 
     steps:
-      - name: Download Vélib JSON
+      - name: Install SnowSQL
+        run: |
+          curl -fSL https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.4/linux_x86_64/snowsql-1.4.5-linux_x86_64.bash -o snowsql.bash
+          SNOWSQL_DEST=/usr/local/bin SNOWSQL_LOGIN_SHELL=/tmp/bashrc bash snowsql.bash
+          snowsql -v
+
+      - name: Download Velib JSON
         run: curl -fSL -o station_information.json "$VELIB_URL"
 
-      # Installe le Snowflake CLI (action officielle)
-      - name: Setup Snowflake CLI
-        uses: snowflake-labs/snowflake-cli-action@v1
-        with:
-          cli-version: latest
-
-      # Exécute un PUT via le Snowflake CLI (commande SQL)
-      - name: Upload file to @VELIB_STAGE via Snowflake CLI
-        env:
-          SNOWFLAKE_ACCOUNT:   ${{ env.SNOW_ACCOUNT }}
-          SNOWFLAKE_USER:      ${{ env.SNOW_USER }}
-          SNOWFLAKE_PASSWORD:  ${{ env.SNOW_PASSWORD }}
-          SNOWFLAKE_ROLE:      ${{ env.SNOW_ROLE }}
-          SNOWFLAKE_WAREHOUSE: ${{ env.SNOW_WAREHOUSE }}
-          SNOWFLAKE_DATABASE:  ${{ env.SNOW_DATABASE }}
-          SNOWFLAKE_SCHEMA:    ${{ env.SNOW_SCHEMA }}
+      - name: Upload to Snowflake Stage (PUT)
         run: |
-          snow sql -q "PUT file://$(pwd)/station_information.json @VELIB_STAGE auto_compress=false OVERWRITE=true"
+          snowsql \
+            -a $SNOWSQL_ACCOUNT \
+            -u $SNOWSQL_USER \
+            -p $SNOWSQL_PWD \
+            -r $SNOWSQL_ROLE \
+            -w $SNOWSQL_WAREHOUSE \
+            -d $SNOWSQL_DB \
+            -s $SNOWSQL_SCHEMA \
+            -q "PUT file://$(pwd)/station_information.json @VELIB_STAGE auto_compress=false OVERWRITE=true"
 
       - name: Trigger dbt Cloud Job
         run: |
@@ -50,4 +50,3 @@ jobs:
             -H "Authorization: Token ${DBT_API_KEY}" \
             -H "Content-Type: application/json" \
             "https://cloud.getdbt.com/api/v2/accounts/${DBT_ACCOUNT_ID}/jobs/${DBT_JOB_ID}/run/"
-            
