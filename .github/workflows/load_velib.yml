@@ -1,4 +1,4 @@
-name: Load Velib JSON into Snowflake
+name: Load Velib JSON into Snowflake (Snowflake CLI)
 
 on:
   workflow_dispatch:
@@ -8,45 +8,36 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
+      # URL Velib OpenData
       VELIB_URL: "https://velib-metropole-opendata.smovengo.cloud/opendata/Velib_Metropole/station_information.json"
 
-      SNOWSQL_ACCOUNT: ${{ secrets.SNOWSQL_ACCOUNT }}
-      SNOWSQL_USER: ${{ secrets.SNOWSQL_USER }}
-      SNOWSQL_PWD: ${{ secrets.SNOWSQL_PWD }}
-      SNOWSQL_ROLE: ${{ secrets.SNOWSQL_ROLE }}
-      SNOWSQL_WAREHOUSE: ${{ secrets.SNOWSQL_WAREHOUSE }}
-      SNOWSQL_DB: ${{ secrets.SNOWSQL_DB }}
-      SNOWSQL_SCHEMA: ${{ secrets.SNOWSQL_SCHEMA }}
+      # Snowflake secrets (à configurer dans GitHub → Settings → Secrets → Actions)
+      SNOWFLAKE_ACCOUNT:  ${{ secrets.SNOWSQL_ACCOUNT }}
+      SNOWFLAKE_USER:     ${{ secrets.SNOWSQL_USER }}
+      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWSQL_PWD }}
+      SNOWFLAKE_ROLE:     ${{ secrets.SNOWSQL_ROLE }}
+      SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWSQL_WAREHOUSE }}
+      SNOWFLAKE_DATABASE:  ${{ secrets.SNOWSQL_DB }}
+      SNOWFLAKE_SCHEMA:    ${{ secrets.SNOWSQL_SCHEMA }}
 
-      DBT_API_KEY: ${{ secrets.DBT_API_KEY }}
-      DBT_ACCOUNT_ID: ${{ secrets.DBT_ACCOUNT_ID }}
-      DBT_JOB_ID: ${{ secrets.DBT_JOB_ID }}
+      # dbt Cloud
+      DBT_API_KEY:     ${{ secrets.DBT_API_KEY }}
+      DBT_ACCOUNT_ID:  ${{ secrets.DBT_ACCOUNT_ID }}
+      DBT_JOB_ID:      ${{ secrets.DBT_JOB_ID }}
 
     steps:
-      - name: Install SnowSQL
-        run: |
-          curl -fSL https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.4/linux_x86_64/snowsql-1.4.5-linux_x86_64.bash -o snowsql.bash
-          SNOWSQL_DEST=/usr/local/bin bash snowsql.bash
-          snowsql -v
+      - name: Check out repository
+        uses: actions/checkout@v4
 
-      - name: Download Velib JSON
-        run: curl -fSL -o station_information.json "$VELIB_URL"
-
-      - name: Upload to Snowflake Stage (PUT)
+      ###############################################################
+      # 1. Install Snowflake CLI (OFFICIAL NEW CLIENT)
+      ###############################################################
+      - name: Install Snowflake CLI
         run: |
-          snowsql \
-            -a $SNOWSQL_ACCOUNT \
-            -u $SNOWSQL_USER \
-            -p $SNOWSQL_PWD \
-            -r $SNOWSQL_ROLE \
-            -w $SNOWSQL_WAREHOUSE \
-            -d $SNOWSQL_DB \
-            -s $SNOWSQL_SCHEMA \
-            -q "PUT file://$(pwd)/station_information.json @VELIB_STAGE auto_compress=false OVERWRITE=true"
+          pip install --upgrade pip
+          pip install snowflake-cli-labs
+          snow --version   # Vérification
 
-      - name: Trigger dbt Cloud Job
-        run: |
-          curl -fSL -X POST \
-            -H "Authorization: Token ${DBT_API_KEY}" \
-            -H "Content-Type: application/json" \
-            "https://cloud.getdbt.com/api/v2/accounts/${DBT_ACCOUNT_ID}/jobs/${DBT_JOB_ID}/run/"
+      ###############################################################
+      # 2. Download Vélib JSON file
+      ###############################################################
