@@ -45,17 +45,24 @@ jobs:
           curl -fSL -o station_information.json "$VELIB_URL"
           wc -c station_information.json
 
-      # 3. PUT dans Snowflake via connexion temporaire
+      # 3. PUT dans Snowflake via Snowflake CLI (options globales)
       - name: Upload JSON to Snowflake Stage
+        env:
+          SNOWFLAKE_ACCOUNT:   ${{ secrets.SNOWSQL_ACCOUNT }}
+          SNOWFLAKE_USER:      ${{ secrets.SNOWSQL_USER }}
+          SNOWFLAKE_PASSWORD:  ${{ secrets.SNOWSQL_PWD }}
+          SNOWFLAKE_ROLE:      ${{ secrets.SNOWSQL_ROLE }}
+          SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWSQL_WAREHOUSE }}
+          SNOWFLAKE_DATABASE:  ${{ secrets.SNOWSQL_DB }}
+          SNOWFLAKE_SCHEMA:    ${{ secrets.SNOWFLAKE_SCHEMA }}
         run: |
-          snow -x \
-            --account $SNOWFLAKE_ACCOUNT \
-            --user $SNOWFLAKE_USER \
-            --password $SNOWFLAKE_PASSWORD \
-            --role $SNOWFLAKE_ROLE \
-            --warehouse $SNOWFLAKE_WAREHOUSE \
-            --database $SNOWFLAKE_DATABASE \
-            --schema $SNOWFLAKE_SCHEMA \
+          snow \
+            --account   "$SNOWFLAKE_ACCOUNT" \
+            --user      "$SNOWFLAKE_USER" \
+            --role      "$SNOWFLAKE_ROLE" \
+            --warehouse "$SNOWFLAKE_WAREHOUSE" \
+            --database  "$SNOWFLAKE_DATABASE" \
+            --schema    "$SNOWFLAKE_SCHEMA" \
             sql -q "
               PUT file://$(pwd)/station_information.json
               @VELIB_STAGE
@@ -63,8 +70,9 @@ jobs:
               OVERWRITE = TRUE;
             "
 
-      # 4. Déclenche job dbt Cloud
+      # 4. Déclencher dbt Cloud (si DBT_ACCOUNT_ID / DBT_JOB_ID sont définis)
       - name: Trigger dbt Cloud Job
+        if: ${{ env.DBT_ACCOUNT_ID != '' && env.DBT_JOB_ID != '' }}
         run: |
           curl -fSL -X POST \
             -H "Authorization: Token ${DBT_API_KEY}" \
