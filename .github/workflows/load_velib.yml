@@ -44,3 +44,38 @@ jobs:
       ###############################################################
       # 2. Download Vélib JSON file
       ###############################################################
+      - name: Download Velib JSON
+        run: |
+          curl -fSL -o station_information.json "$VELIB_URL"
+          echo "Downloaded file size:"
+          wc -c station_information.json
+
+      ###############################################################
+      # 3. PUT file into Snowflake Stage via Snowflake CLI
+      ###############################################################
+      - name: Upload JSON into Snowflake Stage
+        run: |
+          snow sql -q "
+            PUT file://$(pwd)/station_information.json
+            @VELIB_STAGE
+            AUTO_COMPRESS = FALSE
+            OVERWRITE = TRUE;
+          " \
+          --account $SNOWFLAKE_ACCOUNT \
+          --user $SNOWFLAKE_USER \
+          --password $SNOWFLAKE_PASSWORD \
+          --role $SNOWFLAKE_ROLE \
+          --warehouse $SNOWFLAKE_WAREHOUSE \
+          --database $SNOWFLAKE_DATABASE \
+          --schema $SNOWFLAKE_SCHEMA
+
+      ###############################################################
+      # 4. Trigger dbt Cloud Job
+      ###############################################################
+      - name: Trigger dbt Cloud Job
+        run: |
+          curl -fSL -X POST \
+            -H "Authorization: Token ${DBT_API_KEY}" \
+            -H "Content-Type: application/json" \
+            "https://cloud.getdbt.com/api/v2/accounts/${DBT_ACCOUNT_ID}/jobs/${DBT_JOB_ID}/run/"
+          echo "dbt Cloud Job triggered."
