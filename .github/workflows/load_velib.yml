@@ -1,37 +1,52 @@
 name: Load Velib JSON into Snowflake
 
 on:
-#  schedule:
-#    - cron: "35 * * * *"   # toutes les heures
-  workflow_dispatch:       # déclenchement manuel
+  schedule:
+    - cron: "0 * * * *"     # toutes les heures
+  workflow_dispatch:
 
 jobs:
   load-json:
     runs-on: ubuntu-latest
 
-    steps:
-      - name: Install SnowSQL
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y snowflake-snowsql
+    env:
+      VELIB_URL: "https://velib-metropole-opendata.smovengo.cloud/opendata/Velib_Metropole/station_information.json"
 
+      SNOWSQL_ACCOUNT: ${{ secrets.SNOWSQL_ACCOUNT }}
+      SNOWSQL_USER: ${{ secrets.SNOWSQL_USER }}
+      SNOWSQL_PWD: ${{ secrets.SNOWSQL_PWD }}
+      SNOWSQL_ROLE: ${{ secrets.SNOWSQL_ROLE }}
+      SNOWSQL_WAREHOUSE: ${{ secrets.SNOWSQL_WAREHOUSE }}
+      SNOWSQL_DB: ${{ secrets.SNOWSQL_DB }}
+      SNOWSQL_SCHEMA: ${{ secrets.SNOWSQL_SCHEMA }}
+
+      DBT_API_KEY: ${{ secrets.DBT_API_KEY }}
+      DBT_ACCOUNT_ID: ${{ secrets.DBT_ACCOUNT_ID }}
+      DBT_JOB_ID: ${{ secrets.DBT_JOB_ID }}
+
+    steps:
       - name: Download Velib JSON
         run: |
-          curl -o station_information.json \
-            https://velib-metropole-opendata.smovengo.cloud/opendata/Velib_Metropole/station_information.json
+          curl -fSL -o station_information.json "$VELIB_URL"
 
-      - name: Upload to Snowflake Stage
+      - name: Upload to Snowflake Stage (PUT)
+        uses: docker://ghcr.io/snowflakedb/snowsql:latest
+        with:
+          args: >
+            -a ${{ env.SNOWSQL_ACCOUNT }}
+            -u ${{ env.SNOWSQL_USER }}
+            -r ${{ env.SNOWSQL_ROLE }}
+            -w ${{ env.SNOWSQL_WAREHOUSE }}
+            -d ${{ env.SNOWSQL_DB }}
+            -s ${{ env.SNOWSQL_SCHEMA }}
+            -o exit_on_error=true
+            -q "PUT file://station_information.json @VELIB_STAGE auto_compress=false OVERWRITE=true"
         env:
-          SNOWSQL_ACCOUNT: ${{ secrets.SNOWSQL_ACCOUNT }}
-          SNOWSQL_USER: ${{ secrets.SNOWSQL_USER }}
-          SNOWSQL_PWD: ${{ secrets.SNOWSQL_PWD }}
-        run: |
-          snowsql -a $SNOWSQL_ACCOUNT -u $SNOWSQL_USER -p $SNOWSQL_PWD \
-            -q "PUT file://station_information.json @VELIB_STAGE auto_compress=false overwrite=true"
+          SNOWSQL_PWD: ${{ env.SNOWSQL_PWD }}
+
       - name: Trigger dbt Cloud Job
-        env:
-          DBT_API_KEY: ${{ secrets.DBT_API_KEY }}
         run: |
-          curl -X POST \
-            -H "Authorization: Token $DBT_API_KEY" \
-            https://cloud.getdbt.com/api/v2/accounts/<ACCOUNT_ID>/jobs/<JOB_ID>/run/
+          curl -fSL -X POST \
+            -H "Authorization: Token ${DBT_API_KEY}" \
+            -H "Content-Type: application/json" \
+            "https://cloud.getdbt.com/api/v2/accounts/${DBT_ACCOUNT_ID}/jobs/${DBT_JOB_ID}/run/"
