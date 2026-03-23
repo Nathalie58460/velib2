@@ -45,22 +45,17 @@ jobs:
           curl -fSL -o station_information.json "$VELIB_URL"
           wc -c station_information.json
 
-      # 3. PUT dans Snowflake (Paramètres explicites)
+    # 3. PUT dans Snowflake via Snowflake CLI
       - name: Upload JSON to Snowflake Stage
         run: |
-          snow sql -q "
-            PUT file://$(pwd)/station_information.json
-            @VELIB_STAGE
-            AUTO_COMPRESS = FALSE
-            OVERWRITE = TRUE;
-          " \
-          --account "$SNOWFLAKE_ACCOUNT" \
-          --user "$SNOWFLAKE_USER" \
-          --password "$SNOWFLAKE_PASSWORD" \
-          --role "$SNOWFLAKE_ROLE" \
-          --warehouse "$SNOWFLAKE_WAREHOUSE" \
-          --database "$SNOWFLAKE_DATABASE" \
-          --schema "$SNOWFLAKE_SCHEMA"
+          snow sql --account "$SNOWFLAKE_ACCOUNT" \
+                   --user "$SNOWFLAKE_USER" \
+                   --password "$SNOWFLAKE_PASSWORD" \
+                   --role "$SNOWFLAKE_ROLE" \
+                   --warehouse "$SNOWFLAKE_WAREHOUSE" \
+                   --database "$SNOWFLAKE_DATABASE" \
+                   --schema "$SNOWFLAKE_SCHEMA" \
+                   -q "PUT file://$(pwd)/station_information.json @VELIB_STAGE AUTO_COMPRESS = FALSE OVERWRITE = TRUE;"
           
       # 4. Déclencher dbt Cloud
       - name: Trigger dbt Cloud Job
