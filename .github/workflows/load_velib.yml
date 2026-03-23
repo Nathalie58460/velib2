@@ -3,6 +3,7 @@ name: Load Velib JSON into Snowflake (Snowflake CLI)
 on:
   workflow_dispatch:
 
+# Force les actions JS à utiliser Node 24 (évite l’avertissement de dépréciation)
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -11,16 +12,19 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
+      # --- Source Vélib ---
       VELIB_URL: "https://velib-metropole-opendata.smovengo.cloud/opendata/Velib_Metropole/station_information.json"
 
+      # --- Snowflake (secrets requis) ---
       SNOWFLAKE_ACCOUNT:   ${{ secrets.SNOWSQL_ACCOUNT }}
       SNOWFLAKE_USER:      ${{ secrets.SNOWSQL_USER }}
-      SNOWFLAKE_PASSWORD:  ${{ secrets.SNOWSQL_PWD }}
+      SNOWFLAKE_PASSWORD:  ${{ secrets.SNOWSQL_PWD }}         # lu par le CLI via env, pas besoin du flag --password
       SNOWFLAKE_ROLE:      ${{ secrets.SNOWSQL_ROLE }}
       SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWSQL_WAREHOUSE }}
       SNOWFLAKE_DATABASE:  ${{ secrets.SNOWSQL_DB }}
       SNOWFLAKE_SCHEMA:    ${{ secrets.SNOWSQL_SCHEMA }}
 
+      # --- dbt Cloud (facultatifs) ---
       DBT_API_KEY:     ${{ secrets.DBT_API_KEY }}
       DBT_ACCOUNT_ID:  ${{ secrets.DBT_ACCOUNT_ID }}
       DBT_JOB_ID:      ${{ secrets.DBT_JOB_ID }}
@@ -29,57 +33,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      ###############################################################
-      # 1. Install Snowflake CLI
-      ###############################################################
       - name: Install Snowflake CLI
         run: |
           pip install --upgrade pip
           pip install snowflake-cli-labs
           snow --version
 
-      ###############################################################
-      # 2. Download JSON
-      ###############################################################
-      - name: Download Velib JSON
+      - name: Download Vélib JSON
         run: |
           curl -fSL -o station_information.json "$VELIB_URL"
-          wc -c station_information.json
+          echo "File size:" && wc -c station_information.json
 
-      ###############################################################
-      # 3. Create Snowflake connection (REQUIRED)
-      ###############################################################
-      - name: Create Snowflake connection
+      - name: PUT into @VELIB_STAGE (temporary connection)
+        # Pas de --password : le CLI lit SNOWFLAKE_PASSWORD depuis l'environnement.
         run: |
-          snow connection add gha \
-            --account "$SNOWFLAKE_ACCOUNT" \
-            --username "$SNOWFLAKE_USER" \
-            --password "$SNOWFLAKE_PASSWORD" \
-            --role "$SNOWFLAKE_ROLE" \
+          snow sql --temporary-connection \
+            --account   "$SNOWFLAKE_ACCOUNT" \
+            --user      "$SNOWFLAKE_USER" \
+            --role      "$SNOWFLAKE_ROLE" \
             --warehouse "$SNOWFLAKE_WAREHOUSE" \
-            --database "$SNOWFLAKE_DATABASE" \
-            --schema "$SNOWFLAKE_SCHEMA" \
-            --authenticator plain
+            --database  "$SNOWFLAKE_DATABASE" \
+            --schema    "$SNOWFLAKE_SCHEMA" \
+            -q "PUT file://$(pwd)/station_information.json @VELIB_STAGE AUTO_COMPRESS=FALSE OVERWRITE=TRUE;"
 
-      ###############################################################
-      # 4. Execute PUT using connection "gha"
-      ###############################################################
-      - name: Upload JSON to Snowflake Stage
-        run: |
-          snow sql --connection gha -q "
-            PUT file://$(pwd)/station_information.json
-            @VELIB_STAGE
-            AUTO_COMPRESS = FALSE
-            OVERWRITE = TRUE;
-          "
-
-      ###############################################################
-      # 5. Trigger dbt Cloud
-      ###############################################################
-      - name: Trigger dbt Cloud Job
+      - name: Trigger dbt Cloud Job (optional)
         if: ${{ env.DBT_ACCOUNT_ID != '' && env.DBT_JOB_ID != '' }}
         run: |
           curl -fSL -X POST \
             -H "Authorization: Token ${DBT_API_KEY}" \
             -H "Content-Type: application/json" \
-            "https://cloud.getdbt.com/api/v2/accounts/${DBT_ACCOUNT_ID}/jobs/${DBT_JOB_ID}/run/"
+            "https://cloud.getdbt.com/api/v2/accounts/${DBT_ACCOUNT_ID}/jobs/${DBT_JOB_ID
