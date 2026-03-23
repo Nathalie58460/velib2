@@ -26,7 +26,7 @@ jobs:
       - name: Install SnowSQL
         run: |
           curl -fSL https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.4/linux_x86_64/snowsql-1.4.5-linux_x86_64.bash -o snowsql.bash
-          SNOWSQL_DEST=/usr/local/bin SNOWSQL_LOGIN_SHELL=/tmp/bashrc bash snowsql.bash
+          SNOWSQL_DEST=/usr/local/bin bash snowsql.bash
           snowsql -v
 
       - name: Download Velib JSON
