@@ -45,7 +45,7 @@ jobs:
           curl -fSL -o station_information.json "$VELIB_URL"
           wc -c station_information.json
 
-      # 3. PUT dans Snowflake (Syntaxe simplifiée)
+      # 3. PUT dans Snowflake via Snowflake CLI
       - name: Upload JSON to Snowflake Stage
         run: |
           snow sql -q "
@@ -53,8 +53,8 @@ jobs:
             @VELIB_STAGE
             AUTO_COMPRESS = FALSE
             OVERWRITE = TRUE;
-          "
-
+          " --connection env
+          
       # 4. Déclencher dbt Cloud
       - name: Trigger dbt Cloud Job
         if: ${{ env.DBT_ACCOUNT_ID != '' && env.DBT_JOB_ID != '' }}
