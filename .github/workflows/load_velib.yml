@@ -3,6 +3,9 @@ name: Load Velib JSON into Snowflake (Snowflake CLI)
 on:
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   load-json:
     runs-on: ubuntu-latest
