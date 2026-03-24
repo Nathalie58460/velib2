@@ -8,7 +8,6 @@ WITH src AS (
         PAYLOAD
     FROM {{ source('velib', 'station_information_raw') }}
 ),
-
 stations AS (
     SELECT
         f.value:station_id::number      AS station_id,
@@ -20,6 +19,5 @@ stations AS (
     FROM src,
         LATERAL FLATTEN(input => src.PAYLOAD:data:stations) f
 )
-
 SELECT *
-FROM stations;
+FROM stations

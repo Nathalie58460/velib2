@@ -2,6 +2,10 @@ version: 2
 
 sources:
   - name: velib  # C'est le premier argument de {{ source('velib', ...) }}
+    database: TALAN_ODS
+    schema: DBT_NLAMBLIN
     tables:
       - name: station_information_raw # C'est le deuxième argument
         description: "Données JSON brutes importées via GitHub Actions"
+
+
