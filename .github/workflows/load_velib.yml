@@ -69,10 +69,16 @@ jobs:
               AUTO_COMPRESS = FALSE
               OVERWRITE = TRUE;
 
-              COPY INTO STATION_INFORMATION_RAW (PAYLOAD)
+              COPY INTO TALAN_ODS.DBT_NLAMBLIN.STG_VELIB_STATION_INFO1
               FROM (
-                SELECT $1
-                FROM @VELIB_STAGE (FILE_FORMAT => 'JSON_VELIB')
+                SELECT  f.value:station_id::number      AS station_id,
+                  f.value:name::string            AS name,
+                  f.value:lat::float              AS latitude,
+                  f.value:lon::float              AS longitude,
+                  f.value:capacity::number        AS capacity
+                FROM @VELIB_STAGE/station_information.json (FILE_FORMAT => 'JSON_VELIB')
+                ,
+                LATERAL FLATTEN(input => $1:data:stations) f
               )
               ON_ERROR = 'ABORT_STATEMENT';
             "
