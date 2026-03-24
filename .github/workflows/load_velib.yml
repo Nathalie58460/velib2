@@ -48,6 +48,11 @@ jobs:
           wc -c station_information.json
 
       # 3. PUT + COPY INTO via connexion temporaire
+      
+      - name: Debug path for PUT
+        run: |
+          echo "Chemin absolu du fichier : file://$(pwd)/station_information.json"
+
       - name: Upload + Load (PUT + COPY INTO)
         run: |
           snow sql --temporary-connection \
@@ -67,7 +72,7 @@ jobs:
               COPY INTO STATION_INFORMATION_RAW (PAYLOAD)
               FROM (
                 SELECT $1
-                FROM @VELIB_STAGE (FILE_FORMAT => 'VELIB_JSON')
+                FROM @VELIB_STAGE (FILE_FORMAT => 'JSON_VELIB')
               )
               ON_ERROR = 'ABORT_STATEMENT';
             "
