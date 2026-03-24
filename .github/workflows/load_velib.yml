@@ -68,7 +68,13 @@ jobs:
               @VELIB_STAGE
               AUTO_COMPRESS = FALSE
               OVERWRITE = TRUE;
-             
+
+
+             CREATE TABLE IF NOT EXISTS STATION_INFORMATION_RAW (
+             LOAD_TS TIMESTAMP_LTZ DEFAULT CURRENT_TIMESTAMP(),
+             PAYLOAD VARIANT
+             );
+      
              COPY INTO STATION_INFORMATION_RAW (PAYLOAD)
              FROM (
                SELECT \$1
