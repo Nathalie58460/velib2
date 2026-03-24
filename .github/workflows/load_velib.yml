@@ -90,4 +90,5 @@ jobs:
           curl -fSL -X POST \
             -H "Authorization: Token ${DBT_API_KEY}" \
             -H "Content-Type: application/json" \
+            -d '{"cause": "Triggered by GitHub Actions"}' \
             "https://cloud.getdbt.com/api/v2/accounts/${DBT_ACCOUNT_ID}/jobs/${DBT_JOB_ID}/run/"
