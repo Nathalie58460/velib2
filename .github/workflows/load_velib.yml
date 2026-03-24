@@ -71,7 +71,7 @@ jobs:
              
              COPY INTO STATION_INFORMATION_RAW (PAYLOAD)
              FROM (
-               SELECT $1
+               SELECT \$1
                FROM @VELIB_STAGE (FILE_FORMAT => 'JSON_VELIB')
                   )
              ON_ERROR = 'ABORT_STATEMENT';
