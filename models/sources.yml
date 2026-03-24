@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: velib  # C'est le premier argument de {{ source('velib', ...) }}
+    database: "{{ env_var('SNOWFLAKE_DATABASE') }}" # Récupère le nom de la DB depuis GitHub Actions
+    schema: "{{ env_var('SNOWFLAKE_SCHEMA') }}"   # Récupère le schéma depuis GitHub Actions
+    tables:
+      - name: station_information_raw # C'est le deuxième argument
+        description: "Données JSON brutes importées via GitHub Actions"
