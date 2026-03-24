@@ -75,7 +75,7 @@ jobs:
                FROM @VELIB_STAGE (FILE_FORMAT => 'JSON_VELIB')
                   )
              ON_ERROR = 'ABORT_STATEMENT';
-
+              "
 
       # 4. Déclencher dbt Cloud (optionnel)
       - name: Trigger dbt Cloud Job
