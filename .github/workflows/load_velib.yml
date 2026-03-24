@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
 
 env:
+  # Force GitHub Actions to Node.js 24 (évite les warnings)
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -11,11 +12,10 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      # URL Vélib
+      # ---- Vélib ----
       VELIB_URL: "https://velib-metropole-opendata.smovengo.cloud/opendata/Velib_Metropole/station_information.json"
 
-      # Snowflake credentials (utilisés par --connection env)
-      # Assurez-vous que ces secrets sont bien configurés dans GitHub
+      # ---- Snowflake credentials (depuis Secrets GitHub) ----
       SNOWFLAKE_ACCOUNT:   ${{ secrets.SNOWSQL_ACCOUNT }}
       SNOWFLAKE_USER:      ${{ secrets.SNOWSQL_USER }}
       SNOWFLAKE_PASSWORD:  ${{ secrets.SNOWSQL_PWD }}
@@ -24,13 +24,13 @@ jobs:
       SNOWFLAKE_DATABASE:  ${{ secrets.SNOWSQL_DB }}
       SNOWFLAKE_SCHEMA:    ${{ secrets.SNOWSQL_SCHEMA }}
 
-      # dbt Cloud
+      # ---- dbt Cloud ----
       DBT_API_KEY:     ${{ secrets.DBT_API_KEY }}
       DBT_ACCOUNT_ID:  ${{ secrets.DBT_ACCOUNT_ID }}
       DBT_JOB_ID:      ${{ secrets.DBT_JOB_ID }}
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       # 1. Installer Snowflake CLI
@@ -40,24 +40,39 @@ jobs:
           pip install snowflake-cli-labs
           snow --version
 
-      # 2. Télécharger JSON Vélib
+      # 2. Télécharger les données Vélib
       - name: Download Velib JSON
         run: |
           curl -fSL -o station_information.json "$VELIB_URL"
+          echo "File size:"
           wc -c station_information.json
 
-      # 3. PUT dans Snowflake via Snowflake CLI
-      # L'argument --connection env indique au CLI d'utiliser les variables SNOWFLAKE_*
-      - name: Upload JSON to Snowflake Stage
+      # 3. PUT + COPY INTO via connexion temporaire
+      - name: Upload + Load (PUT + COPY INTO)
         run: |
-          snow sql --connection env -q "
-            PUT file://$(pwd)/station_information.json
-            @VELIB_STAGE
-            AUTO_COMPRESS = FALSE
-            OVERWRITE = TRUE;
-          "
+          snow sql --temporary-connection \
+            --account   "$SNOWFLAKE_ACCOUNT" \
+            --user      "$SNOWFLAKE_USER" \
+            --password  "$SNOWFLAKE_PASSWORD" \
+            --role      "$SNOWFLAKE_ROLE" \
+            --warehouse "$SNOWFLAKE_WAREHOUSE" \
+            --database  "$SNOWFLAKE_DATABASE" \
+            --schema    "$SNOWFLAKE_SCHEMA" \
+            -q "
+              PUT file://$(pwd)/station_information.json
+              @VELIB_STAGE
+              AUTO_COMPRESS = FALSE
+              OVERWRITE = TRUE;
 
-      # 4. Déclencher dbt Cloud (optionnel, si les IDs sont renseignés)
+              COPY INTO STATION_INFORMATION_RAW (PAYLOAD)
+              FROM (
+                SELECT $1
+                FROM @VELIB_STAGE (FILE_FORMAT => 'VELIB_JSON')
+              )
+              ON_ERROR = 'ABORT_STATEMENT';
+            "
+
+      # 4. Déclencher dbt Cloud (optionnel)
       - name: Trigger dbt Cloud Job
         if: ${{ env.DBT_ACCOUNT_ID != '' && env.DBT_JOB_ID != '' }}
         run: |
