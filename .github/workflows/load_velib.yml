@@ -2,8 +2,6 @@ name: Load Velib JSON into Snowflake (Snowflake CLI)
 
 on:
 <<<<<<< HEAD
-  schedule:
-    - cron: "0 * * * *"     # toutes les heures
   workflow_dispatch:
 =======
   workflow_dispatch:
